@@ -10,101 +10,169 @@ import ru.salina.golfpadtest.model.Game;
 import ru.salina.golfpadtest.service.GameService;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
-import java.util.Objects;
+import java.util.Map;
 
 @Controller
 public class AppController {
 
     @Autowired
     private GameService gameService;
+    
+    private static final int PLAYERS_COUNT = 2;
 
     @GetMapping("/")
     public String showRegistrationPage(Model model) {
-        model.addAttribute("player1Name", "");
-        model.addAttribute("player2Name", "");
+        List<String> playerNames = createEmptyPlayerNames();
+        model.addAttribute("playerNames", playerNames);
+        addCommonAttributes(model);
         return "registration";
     }
 
     @PostMapping("/game")
-    public String startGame(@RequestParam("player1Name") String player1Name,
-                           @RequestParam("player2Name") String player2Name,
-                           Model model) {
-        if (player1Name == null || player1Name.trim().isEmpty() || 
-            player2Name == null || player2Name.trim().isEmpty()) {
-            model.addAttribute("error", "Both players' names are required");
-            model.addAttribute("player1Name", player1Name);
-            model.addAttribute("player2Name", player2Name);
+    public String startGame(@RequestParam Map<String, String> allParams, Model model) {
+        try {
+            List<String> playerNames = new ArrayList<>();
+            for (int i = 0; i < PLAYERS_COUNT; i++) {
+                String name = allParams.get("playerName" + i);
+                if (name == null || name.trim().isEmpty()) {
+                    throw new IllegalArgumentException("All player names are required");
+                }
+                playerNames.add(name.trim());
+            }
+
+            List<List<Integer>> playerScores = createEmptyPlayerScores();
+            
+            model.addAttribute("playerNames", playerNames);
+            model.addAttribute("playerScores", playerScores);
+            addCommonAttributes(model);
+            return "main";
+            
+        } catch (IllegalArgumentException e) {
+            model.addAttribute("error", e.getMessage());
+            
+            List<String> playerNames = new ArrayList<>();
+            for (int i = 0; i < PLAYERS_COUNT; i++) {
+                playerNames.add(allParams.getOrDefault("playerName" + i, ""));
+            }
+            
+            model.addAttribute("playerNames", playerNames);
+            addCommonAttributes(model);
             return "registration";
         }
-
-        List<Integer> emptyScores1 = new ArrayList<>(Collections.nCopies(18, 0));
-        List<Integer> emptyScores2 = new ArrayList<>(Collections.nCopies(18, 0));
-
-        model.addAttribute("player1Scores", emptyScores1);
-        model.addAttribute("player2Scores", emptyScores2);
-        model.addAttribute("player1Name", player1Name);
-        model.addAttribute("player2Name", player2Name);
-        
-        return "main";
     }
 
     @PostMapping("/calculate")
-    public String calculate(@RequestParam("player1Name") String player1Name,
-                            @RequestParam("player2Name") String player2Name,
-                            @RequestParam("player1Scores") List<Integer> player1Scores,
-                            @RequestParam("player2Scores") List<Integer> player2Scores,
-                            Model model) {
-        
-        System.out.println("DEBUG: calculate - player1Name = " + player1Name);
-        System.out.println("DEBUG: calculate - player2Name = " + player2Name);
-        System.out.println("DEBUG: calculate - player1Scores size = " + (player1Scores != null ? player1Scores.size() : "null"));
-        System.out.println("DEBUG: calculate - player2Scores size = " + (player2Scores != null ? player2Scores.size() : "null"));
-        
+    public String calculate(@RequestParam Map<String, String> allParams, Model model) {
         try {
-            assert player1Scores != null;
-            assert player2Scores != null;
-            Game game = gameService.calculateGame(player1Name, player1Scores,
-                                                               player2Name, player2Scores);
+            List<String> playerNames = extractPlayerNames(allParams);
+            List<List<Integer>> playerScores = parsePlayerScores(allParams);
 
-            int player1Total = safeSum(player1Scores);
-            int player2Total = safeSum(player2Scores);
+            Game game = gameService.calculateGame(playerNames, playerScores);
 
-            String leader = null;
-            if (player1Total < player2Total) {
-                leader = player1Name;
-            } else if (player2Total < player1Total) {
-                leader = player2Name;
-            }
-
+            model.addAttribute("playerNames", playerNames);
+            model.addAttribute("playerScores", playerScores);
+            addCommonAttributes(model);
             model.addAttribute("game", game);
-            model.addAttribute("player1Name", player1Name);
-            model.addAttribute("player2Name", player2Name);
-            model.addAttribute("player1Scores", player1Scores);
-            model.addAttribute("player2Scores", player2Scores);
-            model.addAttribute("player1Total", player1Total);
-            model.addAttribute("player2Total", player2Total);
-            model.addAttribute("leader", leader);
-            model.addAttribute("summaryVisible", true);
-
-        } catch (IllegalArgumentException e) {
+            
+        } catch (Exception e) {
             model.addAttribute("error", e.getMessage());
-            model.addAttribute("player1Name", player1Name);
-            model.addAttribute("player2Name", player2Name);
-            model.addAttribute("player1Scores", player1Scores);
-            model.addAttribute("player2Scores", player2Scores);
 
-            model.addAttribute("player1Total", 0);
-            model.addAttribute("player2Total", 0);
-            model.addAttribute("leader", null);
-            model.addAttribute("summaryVisible", true);
+            List<String> playerNames = extractPlayerNames(allParams);
+            List<List<Integer>> playerScores = parsePlayerScoresWithZeros(allParams);
+            
+            model.addAttribute("playerNames", playerNames);
+            model.addAttribute("playerScores", playerScores);
+            addCommonAttributes(model);
         }
+        
         return "main";
     }
 
-    private int safeSum(List<Integer> scores) {
-        if (scores == null) return 0;
-        return scores.stream().filter(Objects::nonNull).mapToInt(Integer::intValue).sum();
+    // Helper methods to eliminate code duplication
+    private List<String> createEmptyPlayerNames() {
+        List<String> playerNames = new ArrayList<>();
+        for (int i = 0; i < PLAYERS_COUNT; i++) {
+            playerNames.add("");
+        }
+        return playerNames;
+    }
+
+    private List<String> extractPlayerNames(Map<String, String> allParams) {
+        List<String> playerNames = new ArrayList<>();
+        for (int i = 0; i < PLAYERS_COUNT; i++) {
+            String name = allParams.get("playerName" + i);
+            playerNames.add(name != null && !name.trim().isEmpty() ? name.trim() : "Player " + (i + 1));
+        }
+        return playerNames;
+    }
+
+    private List<List<Integer>> createEmptyPlayerScores() {
+        int holesCount = gameService.getHolesAmount();
+        List<List<Integer>> playerScores = new ArrayList<>();
+        for (int i = 0; i < PLAYERS_COUNT; i++) {
+            List<Integer> scores = new ArrayList<>();
+            for (int j = 0; j < holesCount; j++) {
+                scores.add(0);
+            }
+            playerScores.add(scores);
+        }
+        return playerScores;
+    }
+
+    private List<List<Integer>> parsePlayerScores(Map<String, String> allParams) {
+        int holesCount = gameService.getHolesAmount();
+        List<List<Integer>> playerScores = new ArrayList<>();
+        for (int player = 0; player < PLAYERS_COUNT; player++) {
+            List<Integer> playerHoleScores = new ArrayList<>();
+            for (int hole = 1; hole <= holesCount; hole++) {
+                String scoreParam = allParams.get("player" + player + "hole" + hole);
+                int score = 0;
+                if (scoreParam != null && !scoreParam.trim().isEmpty()) {
+                    try {
+                        score = Integer.parseInt(scoreParam.trim());
+                        if (score <= 0) {
+                            throw new IllegalArgumentException("Please enter all strokes. All scores must be greater than 0.");
+                        }
+                    } catch (NumberFormatException e) {
+                        throw new IllegalArgumentException("Please enter all strokes. Invalid score format.");
+                    }
+                } else {
+                    throw new IllegalArgumentException("Please enter all strokes. All holes must have scores.");
+                }
+                playerHoleScores.add(score);
+            }
+            playerScores.add(playerHoleScores);
+        }
+        return playerScores;
+    }
+
+    private List<List<Integer>> parsePlayerScoresWithZeros(Map<String, String> allParams) {
+        int holesCount = gameService.getHolesAmount();
+        List<List<Integer>> playerScores = new ArrayList<>();
+        for (int player = 0; player < PLAYERS_COUNT; player++) {
+            List<Integer> playerHoleScores = new ArrayList<>();
+            for (int hole = 1; hole <= holesCount; hole++) {
+                String scoreParam = allParams.get("player" + player + "hole" + hole);
+                int score = 0;
+                if (scoreParam != null && !scoreParam.trim().isEmpty()) {
+                    try {
+                        score = Integer.parseInt(scoreParam.trim());
+                        if (score < 0) score = 0;
+                    } catch (NumberFormatException e) {
+                        score = 0;
+                    }
+                }
+                playerHoleScores.add(score);
+            }
+            playerScores.add(playerHoleScores);
+        }
+        return playerScores;
+    }
+
+    private void addCommonAttributes(Model model) {
+        int holesCount = gameService.getHolesAmount();
+        model.addAttribute("playersAmount", PLAYERS_COUNT);
+        model.addAttribute("holesAmount", holesCount);
     }
 }

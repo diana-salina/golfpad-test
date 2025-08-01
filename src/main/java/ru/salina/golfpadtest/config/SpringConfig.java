@@ -5,6 +5,9 @@ import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.PropertySource;
+import org.springframework.context.support.PropertySourcesPlaceholderConfigurer;
+import org.springframework.core.io.ClassPathResource;
 import org.springframework.web.servlet.config.annotation.EnableWebMvc;
 import org.springframework.web.servlet.config.annotation.ResourceHandlerRegistry;
 import org.springframework.web.servlet.config.annotation.ViewResolverRegistry;
@@ -47,7 +50,15 @@ public class SpringConfig implements WebMvcConfigurer {
         ThymeleafViewResolver resolver = new ThymeleafViewResolver();
         resolver.setTemplateEngine(templateEngine());
         registry.viewResolver(resolver);
+    }    
+    
+    @Bean
+    public static PropertySourcesPlaceholderConfigurer propertyConfig() {
+        PropertySourcesPlaceholderConfigurer configurer = new PropertySourcesPlaceholderConfigurer();
+        configurer.setLocation(new ClassPathResource("config.properties"));
+        return configurer;
     }
+
     @Override
     public void addResourceHandlers(ResourceHandlerRegistry registry) {
         registry.addResourceHandler("/css/**")

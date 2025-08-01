@@ -1,23 +1,37 @@
 package ru.salina.golfpadtest.service;
 
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.PropertySource;
 import org.springframework.stereotype.Service;
 import ru.salina.golfpadtest.model.GolfPlayer;
 import ru.salina.golfpadtest.model.Game;
 
+import java.util.ArrayList;
 import java.util.List;
 
 @Service
+@PropertySource("classpath:config.properties")
 public class GameService {
-    public Game calculateGame(String player1Name, List<Integer> player1Scores,
-                              String player2Name, List<Integer> player2Scores) {
-        
-        if (player1Scores.size() != 18 || player2Scores.size() != 18) {
-            throw new IllegalArgumentException("Each player must have exactly 18 scores");
+    @Value("${holesAmount}")
+    private int holesAmount;
+
+    public Game calculateGame(List<String> playerNames, List<List<Integer>> playerScores) {
+        for (List<Integer> scores : playerScores) {
+            if (scores.size() != holesAmount) {
+                throw new IllegalArgumentException("Each player must have exactly " + holesAmount + " scores");
+            }
         }
 
-        GolfPlayer player1 = new GolfPlayer(player1Name, player1Scores);
-        GolfPlayer player2 = new GolfPlayer(player2Name, player2Scores);
+        List<GolfPlayer> players = new ArrayList<>();
+        for (int i = 0; i < playerNames.size(); i++) {
+            players.add(new GolfPlayer(playerNames.get(i), playerScores.get(i)));
+        }
 
-        return new Game(player1, player2);
+        return new Game(players, holesAmount);
     }
-} 
+
+    public int getHolesAmount() {
+        return holesAmount;
+    }
+}
